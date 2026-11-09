@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>陳渝SDGs 不塑永續-淨灘</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font: Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+        }
+
+        /* 浪花與海洋動畫 */
+        @keyframes waveMove {
+            0% { transform: translateX(0) scaleY(1); }
+            50% { transform: translateX(-2%) scaleY(1.05); }
+            100% { transform: translateX(0) scaleY(1); }
+        }
+
+        .wave-animation {
+            animation: waveMove 4s ease-in-out infinite;
+        }
+
+        /* 得分浮動動畫 */
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
+        }
+
+        .score-popup {
+            position: absolute;
+            animation: floatUp 0.8s ease-out forwards;
+            pointer-events: none;
+            font-weight: 900;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* 垃圾拾取消失動畫 */
+        @keyframes collectAnim {
+            0% { transform: scale(1) rotate(var(--rot)); opacity: 1; }
+            50% { transform: scale(1.4) rotate(calc(var(--rot) + 45deg)); opacity: 0.8; }
+            100% { transform: scale(0) rotate(calc(var(--rot) + 90deg)); opacity: 0; }
+        }
+
+        .collecting {
+            animation: collectAnim 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+            pointer-events: none !important;
+        }
+
+        /* 垃圾飄動/微晃 Hover 效果 */
+        .trash-item {
+            transition: transform 0.15s ease, filter 0.15s ease;
+            cursor: pointer;
+            filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.25));
+        }
+        
+        .trash-item:hover {
+            filter: drop-shadow(0px 6px 10px rgba(0,0,0,0.4)) brightness(1.15);
+        }
+
+        /* 玻璃擬態樣式 Header */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        /* 沙灘細節紋理 */
+        .beach-sand {
+            background-color: #f6d7b0;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(224, 185, 137, 0.4) 15%, transparent 16%),
+                radial-gradient(circle at 20% 80%, rgba(212, 163, 108, 0.3) 10%, transparent 11%),
+                radial-gradient(circle at 80% 30%, rgba(235, 195, 145, 0.4) 12%, transparent 13%);
+            background-size: 60px 60px;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen relative m-0 p-0 overflow-hidden flex flex-col">
+
+    <!-- 頂部頁首與資訊欄 -->
+    <header class="absolute top-0 left-0 right-0 z-20 px-4 py-3 md:px-8 flex justify-between items-center glass-panel shadow-md">
+        <!-- 頁首標題 (左上角大號粗體) -->
+        <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-recycle text-emerald-600 text-3xl md:text-4xl"></i>
+            <div>
+                <h1 class="text-xl md:text-3xl font-black text-gray-800 tracking-wide">
+                    陳渝SDGs 不塑永續-淨灘
+                </h1>
+                <p class="text-xs md:text-sm text-emerald-700 font-bold hidden sm:block">
+                    SDG 14 保全海洋生態 ‧ 清潔海灘動起來！
+                </p>
+            </div>
+        </div>
+
+        <!-- 遊戲進度與分數 (右上角) -->
+        <div class="flex items-center space-x-3 md:space-x-6">
+            <!-- 關卡標籤 -->
+            <div class="bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1.5 rounded-xl text-center shadow-sm">
+                <span class="text-xs text-emerald-600 font-bold block">關卡</span>
+                <span id="level-display" class="text-lg md:text-xl font-black">第 1 關</span>
+            </div>
+            
+            <!-- 清理進度 -->
+            <div class="bg-sky-100 text-sky-800 border border-sky-300 px-3 py-1.5 rounded-xl text-center shadow-sm min-w-[90px]">
+                <span class="text-xs text-sky-600 font-bold block">已清理進度</span>
+                <span id="progress-display" class="text-lg md:text-xl font-black">0 / 50</span>
+            </div>
+
+            <!-- 目前分數 -->
+            <div class="bg-amber-100 text-amber-800 border border-amber-300 px-4 py-1.5 rounded-xl text-center shadow-sm min-w-[100px]">
+                <span class="text-xs text-amber-600 font-bold block">總積分</span>
+                <span id="score-display" class="text-xl md:text-2xl font-black text-amber-700">0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主遊戲畫面 (分為上半部海洋與下半部沙灘) -->
+    <main class="w-full h-full flex flex-col relative">
+
+        <!-- 1. 上半部：天線與藍天大海 -->
+        <div class="w-full h-[38%] relative bg-gradient-to-b from-sky-400 via-sky-300 to-sky-200 overflow-hidden">
+            <!-- 太陽 -->
+            <div class="absolute top-6 right-16 w-16 h-16 md:w-20 md:h-20 bg-amber-300 rounded-full blur-sm opacity-90 animate-pulse"></div>
+            
+            <!-- 白雲 -->
+            <div class="absolute top-10 left-12 opacity-80 text-white text-5xl">
+                <i class="fa-solid fa-cloud"></i>
+            </div>
+            <div class="absolute top-16 left-1/3 opacity-60 text-white text-4xl">
+                <i class="fa-solid fa-cloud"></i>
+            </div>
+            <div class="absolute top-8 right-1/4 opacity-70 text-white text-6xl">
+                <i class="fa-solid fa-cloud"></i>
+            </div>
+
+            <!-- 海浪區域 -->
+            <div class="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-b from-cyan-600 to-teal-500 overflow-hidden">
+                <!-- 海浪白邊波紋 1 -->
+                <div class="wave-animation absolute -top-4 left-0 right-0 h-10 bg-cyan-300 opacity-60 rounded-[100%]"></div>
+                <!-- 海浪白邊波紋 2 -->
+                <div class="wave-animation absolute -top-2 left-0 right-0 h-8 bg-white opacity-80 rounded-[100%]" style="animation-delay: -2s;"></div>
+            </div>
+        </div>
+
+        <!-- 2. 下半部：金黃色沙灘 (垃圾散布區) -->
+        <div id="beach-area" class="w-full h-[62%] beach-sand relative overflow-hidden border-t-4 border-amber-200 shadow-inner">
+            <!-- 潮水邊界濕沙質感 -->
+            <div class="w-full h-8 bg-gradient-to-b from-amber-700/20 to-transparent"></div>
+            
+            <!-- 裝飾用小貝殼 (無分數) -->
+            <div class="absolute top-6 left-[15%] text-amber-200/60 text-xl rotate-12"><i class="fa-solid fa-shell"></i></div>
+            <div class="absolute bottom-12 right-[10%] text-amber-200/60 text-2xl -rotate-45"><i class="fa-solid fa-shell"></i></div>
+            <div class="absolute bottom-8 left-[30%] text-amber-200/50 text-lg rotate-90"><i class="fa-solid fa-shell"></i></div>
+
+            <!-- 50 個垃圾將由 JavaScript 動態生成於此 -->
+        </div>
+    </main>
+
+    <!-- 底部說明條 -->
+    <footer class="absolute bottom-2 left-4 z-10 text-xs text-amber-900/70 font-bold bg-white/40 px-3 py-1 rounded-full backdrop-blur-sm pointer-events-none">
+        💡 提示：點擊撿拾沙灘上的各式垃圾！體積越大的垃圾積分更高喔！
+    </footer>
+
+    <!-- 任務成功 / 結算 彈出視窗 (Modal) -->
+    <div id="success-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-3xl p-8 max-w-md w-[90%] text-center shadow-2xl border-4 border-emerald-400 transform scale-90 transition-transform duration-300 relative overflow-hidden" id="modal-content">
+            <!-- 彩帶/光芒背景裝飾 -->
+            <div class="absolute -top-12 -left-12 w-32 h-32 bg-yellow-300/30 rounded-full blur-xl"></div>
+            <div class="absolute -bottom-12 -right-12 w-32 h-32 bg-emerald-300/30 rounded-full blur-xl"></div>
+
+            <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl shadow-inner border-2 border-emerald-300">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+
+            <h2 class="text-3xl font-black text-gray-800 mb-2">任務成功！</h2>
+            <p class="text-gray-600 text-sm mb-6 font-medium">感謝您為保護海洋生態與不塑永續盡一份心力！海灘變得無比乾淨！</p>
+
+            <!-- 結算成績單 -->
+            <div class="bg-gray-50 rounded-2xl p-4 mb-6 border border-gray-100 shadow-inner">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-gray-500 font-bold">清理垃圾總數：</span>
+                    <span id="modal-cleaned-count" class="text-emerald-600 font-black text-lg">50 / 50</span>
+                </div>
+                <div class="flex justify-between items-center border-t border-gray-200 pt-2">
+                    <span class="text-gray-700 font-bold">本關獲得總積分：</span>
+                    <span id="modal-final-score" class="text-amber-600 font-black text-2xl">0</span>
+                </div>
+            </div>
+
+            <!-- 操作按鈕 -->
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button id="btn-restart" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 px-4 rounded-xl transition duration-200 shadow-sm active:scale-95">
+                    <i class="fa-solid fa-rotate-right mr-1"></i> 重新開始
+                </button>
+                <button id="btn-next" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl transition duration-200 shadow-md hover:shadow-lg active:scale-95">
+                    前往下一關 <i class="fa-solid fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 遊戲邏輯與 音效 API JavaScript -->
+    <script>
+        // ----------------------------------------------------
+        // 1. Web Audio API 音效合成器 (免外部音效檔)
+        // ----------------------------------------------------
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+
+            // 撿拾垃圾音效 (清脆的高音 Pop)
+            playCollectSound(points) {
+                this.init();
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                // 根據積分高低調整音調 Pitch
+                const baseFreq = 400 + (points * 12);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(baseFreq, now);
+                osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.6, now + 0.12);
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.12);
+            }
+
+            // 關卡成功勝利音效 (歡樂三連音和弦)
+            playWinSound() {
+                this.init();
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, index) => {
+                    const now = this.ctx.currentTime + (index * 0.1);
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                });
+            }
+        }
+
+        const soundFX = new SoundFX();
+
+        // ----------------------------------------------------
+        // 2. 垃圾種類定義 (種類、圖示、分數、尺寸大小)
+        // ----------------------------------------------------
+        const TRASH_TYPES = [
+            {
+                name: '保麗龍塊',
+                icon: 'fa-cube',
+                color: 'text-gray-100',
+                points: 30,
+                size: 'text-4xl md:text-5xl',
+                sizeName: '大型'
+            },
+            {
+                name: '大型漂流木',
+                icon: 'fa-tree',
+                color: 'text-amber-900',
+                points: 35,
+                size: 'text-4xl md:text-5xl',
+                sizeName: '大型'
+            },
+            {
+                name: '棄置漁網/繩索',
+                icon: 'fa-dharmachakra',
+                color: 'text-stone-600',
+                points: 25,
+                size: 'text-3xl md:text-4xl',
+                sizeName: '中型'
+            },
+            {
+                name: '寶特瓶',
+                icon: 'fa-bottle-water',
+                color: 'text-sky-500',
+                points: 20,
+                size: 'text-2xl md:text-3xl',
+                sizeName: '中型'
+            },
+            {
+                name: '塑膠飲料杯',
+                icon: 'fa-glass-water-droplet',
+                color: 'text-cyan-400',
+                points: 15,
+                size: 'text-2xl md:text-3xl',
+                sizeName: '中型'
+            },
+            {
+                name: '紙質餐盒',
+                icon: 'fa-box-open',
+                color: 'text-amber-700',
+                points: 15,
+                size: 'text-xl md:text-2xl',
+                sizeName: '小型'
+            },
+            {
+                name: '塑膠袋',
+                icon: 'fa-bag-shopping',
+                color: 'text-pink-300',
+                points: 10,
+                size: 'text-xl md:text-2xl',
+                sizeName: '小型'
+            },
+            {
+                name: '鋁罐漂流物',
+                icon: 'fa-wine-can',
+                color: 'text-red-400',
+                points: 10,
+                size: 'text-lg md:text-xl',
+                sizeName: '小型'
+            }
+        ];
+
+        // ----------------------------------------------------
+        // 3. 遊戲狀態管理
+        // ----------------------------------------------------
+        const TOTAL_TRASH_COUNT = 50;
+        let currentScore = 0;
+        let cleanedCount = 0;
+        let currentLevel = 1;
+        let isGameActive = true;
+
+        // DOM 元素引用
+        const beachArea = document.getElementById('beach-area');
+        const scoreDisplay = document.getElementById('score-display');
+        const progressDisplay = document.getElementById('progress-display');
+        const levelDisplay = document.getElementById('level-display');
+        
+        const modal = document.getElementById('success-modal');
+        const modalContent = document.getElementById('modal-content');
+        const modalCleanedCount = document.getElementById('modal-cleaned-count');
+        const modalFinalScore = document.getElementById('modal-final-score');
+        const btnRestart = document.getElementById('btn-restart');
+        const btnNext = document.getElementById('btn-next');
+
+        // ----------------------------------------------------
+        // 4. 初始化與垃圾生成 logic
+        // ----------------------------------------------------
+        function initGame(resetScore = false) {
+            if (resetScore) {
+                currentScore = 0;
+                currentLevel = 1;
+            }
+            
+            cleanedCount = 0;
+            isGameActive = true;
+
+            // 更新 UI
+            scoreDisplay.textContent = currentScore;
+            progressDisplay.textContent = `${cleanedCount} / ${TOTAL_TRASH_COUNT}`;
+            levelDisplay.textContent = `第 ${currentLevel} 關`;
+
+            // 清空海灘
+            beachArea.innerHTML = `
+                <div class="w-full h-8 bg-gradient-to-b from-amber-700/20 to-transparent"></div>
+                <div class="absolute top-6 left-[15%] text-amber-200/60 text-xl rotate-12"><i class="fa-solid fa-shell"></i></div>
+                <div class="absolute bottom-12 right-[10%] text-amber-200/60 text-2xl -rotate-45"><i class="fa-solid fa-shell"></i></div>
+                <div class="absolute bottom-8 left-[30%] text-amber-200/50 text-lg rotate-90"><i class="fa-solid fa-shell"></i></div>
+            `;
+
+            // 隱藏 modal
+            modal.classList.add('hidden', 'opacity-0');
+            modalContent.classList.add('scale-90');
+
+            // 隨機產生 50 個垃圾
+            generateTrashItems(TOTAL_TRASH_COUNT);
+        }
+
+        // 隨機佈置垃圾於下半部沙灘
+        function generateTrashItems(count) {
+            const containerWidth = beachArea.clientWidth;
+            const containerHeight = beachArea.clientHeight;
+
+            // 邊界保護 offset
+            const paddingX = 40;
+            const paddingTop = 40; // 避免太靠近浪花
+            const paddingBottom = 40;
+
+            for (let i = 0; i < count; i++) {
+                // 隨機選擇垃圾類型
+                const type = TRASH_TYPES[Math.floor(Math.random() * TRASH_TYPES.length)];
+                
+                // 隨機座標與旋轉角度
+                const posX = paddingX + Math.random() * (containerWidth - paddingX * 2);
+                const posY = paddingTop + Math.random() * (containerHeight - paddingTop - paddingBottom);
+                const rotation = Math.floor(Math.random() * 360);
+
+                // 建立 HTML 元素
+                const trashEl = document.createElement('div');
+                trashEl.className = `trash-item absolute ${type.size} ${type.color} flex items-center justify-center p-2`;
+                trashEl.style.left = `${posX}px`;
+                trashEl.style.top = `${posY}px`;
+                trashEl.style.setProperty('--rot', `${rotation}deg`);
+                trashEl.style.transform = `rotate(${rotation}deg)`;
+                
+                // 內建 FontAwesome 圖示
+                trashEl.innerHTML = `<i class="fa-solid ${type.icon}"></i>`;
+                trashEl.title = `${type.name} (+${type.points}分)`;
+
+                // 註冊點擊撿拾事件
+                trashEl.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    collectTrash(trashEl, type, e.clientX, e.clientY);
+                });
+
+                beachArea.appendChild(trashEl);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 5. 點擊撿拾垃圾與得分處理
+        // ----------------------------------------------------
+        function collectTrash(element, type, clickX, clickY) {
+            if (!isGameActive || element.classList.contains('collecting')) return;
+
+            // 設為已撿拾狀態
+            element.classList.add('collecting');
+
+            // 更新分數與計數
+            currentScore += type.points;
+            cleanedCount++;
+
+            // 播放點擊音效
+            soundFX.playCollectSound(type.points);
+
+            // 更新UI
+            scoreDisplay.textContent = currentScore;
+            progressDisplay.textContent = `${cleanedCount} / ${TOTAL_TRASH_COUNT}`;
+
+            // 顯示飄浮分數提示 (例如：+20)
+            showScorePopup(clickX, clickY, type.points);
+
+            // 動播結束後移除 DOM
+            setTimeout(() => {
+                element.remove();
+            }, 350);
+
+            // 檢查是否全數撿完
+            if (cleanedCount >= TOTAL_TRASH_COUNT) {
+                gameSuccess();
+            }
+        }
+
+        // 浮動得分提示 (+積分)
+        function showScorePopup(x, y, points) {
+            const popup = document.createElement('div');
+            popup.className = 'score-popup text-amber-500 font-black text-2xl z-30';
+            popup.textContent = `+${points}`;
+            
+            // 計算絕對位置
+            popup.style.left = `${x - 20}px`;
+            popup.style.top = `${y - 30}px`;
+
+            document.body.appendChild(popup);
+
+            setTimeout(() => {
+                popup.remove();
+            }, 800);
+        }
+
+        // ----------------------------------------------------
+        // 6. 全數撿完 / 通關邏輯
+        // ----------------------------------------------------
+        function gameSuccess() {
+            isGameActive = false;
+
+            // 播放勝利音效
+            setTimeout(() => {
+                soundFX.playWinSound();
+            }, 300);
+
+            // 更新 Modal 內容
+            modalCleanedCount.textContent = `${cleanedCount} / ${TOTAL_TRASH_COUNT}`;
+            modalFinalScore.textContent = currentScore;
+
+            // 顯示 Modal (帶淡入縮放效果)
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-90');
+                modalContent.classList.add('scale-100');
+            }, 50);
+        }
+
+        // ----------------------------------------------------
+        // 7. 事件監聽與初始化啟動
+        // ----------------------------------------------------
+        btnRestart.addEventListener('click', () => {
+            initGame(true); // 完全重置分數與關卡
+        });
+
+        btnNext.addEventListener('click', () => {
+            currentLevel++;
+            initGame(false); // 保留累積總分，前往下一關
+        });
+
+        // 視窗大小改變時重新適應佈局
+        window.addEventListener('resize', () => {
+            if (isGameActive && cleanedCount < TOTAL_TRASH_COUNT) {
+                // 如果尺寸調整過大，重新平均分佈當前剩餘垃圾
+                const remainingItems = document.querySelectorAll('.trash-item:not(.collecting)');
+                const containerWidth = beachArea.clientWidth;
+                const containerHeight = beachArea.clientHeight;
+                
+                remainingItems.forEach(item => {
+                    const currentLeft = parseFloat(item.style.left);
+                    const currentTop = parseFloat(item.style.top);
+
+                    if (currentLeft > containerWidth - 40) item.style.left = `${containerWidth - 50}px`;
+                    if (currentTop > containerHeight - 40) item.style.top = `${containerHeight - 50}px`;
+                });
+            }
+        });
+
+        // 頁面載入完成後啟動遊戲
+        window.onload = () => {
+            initGame(true);
+        };
+    </script>
+</body>
+</html>
